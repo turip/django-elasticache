@@ -100,3 +100,44 @@ def test_invalidate_cache(get_cluster_info):
         pass
     eq_(backend._cache.get.call_count, 2)
     eq_(get_cluster_info.call_count, 2)
+
+
+class RaiseExceptionNTimes:
+    def __init__(self, n, rv):
+        self.n = n
+        self.rv = rv
+
+    def __call__(self, *args, **kwargs):
+        self.n -= 1
+        if self.n > 0:
+            raise Exception()
+
+        return self.rv
+
+
+@patch('django.conf.settings', global_settings)
+@patch('django_elasticache.memcached.get_cluster_info')
+def test_retry_works(get_cluster_info):
+    from django_elasticache.memcached import ElastiCache
+    servers = ['h1:p', 'h2:p']
+    get_cluster_info.return_value = {
+        'nodes': servers
+    }
+
+    backend = ElastiCache('h:0', {'CALL_RETRY_COUNT': 5})
+    # Check if the retry count option is not passed to pylibmc
+    assert not ('call_retry_count' in backend._options)
+
+    backend._lib.Client = Mock()
+    assert backend._cache
+    backend._cache.get = Mock()
+    backend._cache.get.side_effect = Exception()
+    try:
+        backend.get('key1', 'val')
+        assert False  # We should not get here as the exception got propagated
+    except Exception:
+        pass
+
+    backend._cache.get = RaiseExceptionNTimes(3, "expected-value")
+    backend._cache.get.side_effect = None
+    assert backend.get('key1', 'val') == "expected-value"

@@ -38,6 +38,7 @@ Your cache backend should look something like this::
             'LOCATION': 'cache-c.draaaf.cfg.use1.cache.amazonaws.com:11211',
             'OPTIONS' {
                 'IGNORE_CLUSTER_ERRORS': [True,False],
+                'CALL_RETRY_COUNT': 1,
             },
         }
     }
@@ -54,6 +55,13 @@ fine.
 The ``IGNORE_CLUSTER_ERRORS`` option is useful when ``LOCATION`` doesn't have support
 for ``config get cluster``. When set to ``True``, and ``config get cluster`` fails,
 it returns a list of a single node with the same endpoint supplied to ``LOCATION``.
+
+The ``CALL_RETRY_COUNT`` option is useful if you want the library to compensate
+for exceptions returned by pylibmc. In case a cache goes into failed or dead state
+pylibmc will raise an exception to notify about the state change. If you set the
+``CALL_RETRY_COUNT`` to at last 3 the system should be able to compensate for a
+state transition of Working -> Failed -> Dead without the application noticing
+it.
 
 Django-elasticache changes default pylibmc params to increase performance.
 
